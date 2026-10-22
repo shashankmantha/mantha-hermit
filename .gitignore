@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Hermit working data (fetched sources, caches, run output, the maintainer's live packs)
+sources/
+state/
+out/
+packs/
+
+# Never commit signing keys (the public key in config/minisign.pub is fine to commit)
+*.key
+minisign.key

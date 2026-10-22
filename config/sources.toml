@@ -1,0 +1,37 @@
+# Rule sources for `hermit fetch`. Pin each one (git `ref` = a commit or tag; zip `sha256`)
+# once you've reviewed it, so runs are reproducible. Unpinned sources print a warning.
+# Check each licence before redistributing rules in a Mantha Ray bundle; hermit records the
+# licence it detects in every manifest.
+#
+# YARA Forge "core" already merges many community repos (signature-base, ReversingLabs, Elastic
+# and more), quality-ranked. Use it alone, or the individual repos below, but not both, or most
+# rules appear twice (hermit skips exact duplicates, but Forge renames rules, so they differ).
+
+[[source]]
+name = "yara-forge-core"
+zip = "https://github.com/YARAHQ/yara-forge/releases/latest/download/yara-forge-rules-core.zip"
+# sha256 = "..."   # pin after the first fetch (the fetch log prints it)
+enabled = true
+
+[[source]]
+name = "signature-base"
+git = "https://github.com/Neo23x0/signature-base.git"
+# ref = "<commit>"
+paths = ["yara"]
+enabled = false
+
+[[source]]
+name = "reversinglabs"
+git = "https://github.com/reversinglabs/reversinglabs-yara-rules.git"
+# ref = "<commit>"
+paths = ["yara"]
+enabled = false
+
+[[source]]
+name = "elastic"
+git = "https://github.com/elastic/protections-artifacts.git"
+# ref = "<commit>"
+paths = ["yara/rules"]
+enabled = false   # Elastic License 2.0: read its terms before redistributing
+
+# Your own rules (the Mantha Ray packs) can sit in sources/<name>/ too; any folder there is read.

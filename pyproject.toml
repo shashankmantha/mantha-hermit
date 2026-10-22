@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mantha-hermit"
+version = "0.4.1"
+description = "Curates community YARA rules into signed rule packs for Mantha Ray, with a local LLM for borderline cases"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [{name = "Shashank Mantha"}]
+keywords = ["yara", "yara-x", "malware", "threat-detection", "minisign", "ollama"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: POSIX :: Linux",
+  "Topic :: Security",
+  "License :: OSI Approved :: MIT License",
+]
+requires-python = ">=3.11"
+dependencies = ["plyara>=2.2", "yara-x==1.22.0", "cryptography>=42"]
+
+[project.optional-dependencies]
+# Its own desktop window, the same way Mantha Ray opens its window.
+desktop = ["pywebview[qt]>=6.2,<7"]
+
+[project.scripts]
+hermit = "hermit.cli:main"
+
+[tool.setuptools]
+packages = ["hermit"]
+
+[tool.setuptools.package-data]
+hermit = ["web/*"]

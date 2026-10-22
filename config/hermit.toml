@@ -1,0 +1,57 @@
+# Mantha Hermit settings. Relative paths are relative to the folder above this config folder.
+
+[paths]
+sources_dir = "sources"            # where `hermit fetch` puts rule sources
+state_db = "state/hermit.sqlite" # parse cache, model-answer cache, which rules each run saw
+out_dir = "out"                    # each run writes out/<timestamp>-<label>/, plus out/latest
+packs_dir = "packs"                # the live, versioned packs that `ask` updates
+
+[parse]
+# Skip these files inside sources (glob on the path relative to the source).
+exclude_globs = ["**/test*/**", "**/deprecated/**", "**/*_test.yar", "**/index*.yar"]
+
+[ollama]
+enabled = true
+# Native Ollama is :11434; the CheapSeek Containerized one is :11435.
+endpoint = "http://127.0.0.1:11434"
+# Any instruct model that follows JSON well; 7-10B is enough. qwen2.5:7b-instruct is a good
+# non-thinking alternative. deepseek-r1 is a reasoning model: slow and weak at strict JSON.
+# Override per run with HERMIT_MODEL=... and HERMIT_OLLAMA=...
+model = "qwen3.5:latest"
+timeout_seconds = 180
+# The model can move a borderline rule in (or out) only with at least this confidence.
+min_confidence = 0.6
+# Thinking models (qwen3.x, deepseek-r1) answer far faster with thinking off. "default" leaves
+# the model's own setting. Ignored by models that don't think.
+think = false
+
+[automation]
+# How `hermit ask` (and a scheduled run) decides without you.
+two_pass = true               # the model answers twice (different wording); both must agree
+uncertain_policy = "info"     # borderline rules the model isn't sure about: "info" (add, can't raise
+                              # the verdict) or "exclude"
+probation_days = 14           # new rules stay at info this long; promoted if the clean set stays quiet
+# Folders of known-clean files (your clean set, the game samples). New rules and rules leaving
+# probation are scanned against them; hits demote the rule to info, or drop it if it hits many files.
+clean_dirs = []
+drop_after_clean_hits = 3
+clean_scan_timeout_seconds = 30
+# Ask before applying when one request would change more than this many rules
+# (max of the two numbers), when it creates a new pack, or when it removes rules.
+max_change_rules = 25
+max_change_fraction = 0.15
+fetch_before_ask = true
+
+[bundle]
+# Bundle contract v1 (what Mantha Ray loads). See docs/bundle-contract.md.
+yara_x_version = "1.22.0"     # must equal the yara-x version pinned in Mantha Ray's image
+min_app_version = "0.0.0"     # oldest Mantha Ray that can use the bundle
+include_compiled = true       # ship pack.yarx (Mantha Ray still compiles rule text unless signed + same YARA-X)
+# Licences: rules without a known licence stay out of published bundles.
+require_licence = true
+allowed_licences = []         # empty = any known licence; otherwise text matched against the licence
+                              # id or URL, e.g. ["DRL-1.1", "MIT", "Neo23x0/signature-base"]
+secret_key = "~/.config/hermit/minisign.key"   # outside the repo; back it up offline
+public_key = "config/minisign.pub"             # copy into Mantha Ray's repo
+release_repo = ""             # e.g. "yourname/mantha-packs"; `hermit publish` creates a GitHub release
+out_dir = "out/bundles"

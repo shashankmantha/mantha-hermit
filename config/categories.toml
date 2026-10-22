@@ -1,0 +1,339 @@
+# Packs that hermit sorts rules into. Everything here is data: edit freely, then re-run.
+#
+# How a rule is scored against a pack
+#   1. File types. Each rule gets file types from its condition (MZ/ELF gates, pe/elf modules) and,
+#      failing that, from its name, description and strings. If none of a rule's types is allowed
+#      and one is denied, it is "not applicable" to the pack. Rules with no gate count as "any".
+#      Types: pe elf macho ole pdf rtf zip lnk android webshell email memory script any
+#   2. Signals. Each signal adds its weight once if any of its terms matches.
+#      fields: name, tags, description (all meta text), reference, author, strings, condition,
+#              targets (file types), name_prefix (rule name starts with the term)
+#      Terms are case-insensitive and word-bounded ("rat" won't match "pirate"); a trailing *
+#      allows any ending ("pirat*"). In the strings field terms are plain substrings.
+#   3. Score >= include_score: in the pack. review_score..include_score-1: borderline, which the
+#      local model judges (or review.csv lists, with --no-llm). Below: left out.
+#
+# Severity is proposed, never decided by the model: meta score (>=75 threat, >=60 suspicious,
+# else info), then name prefix (MAL_/APT_ threat, SUSP_/HKTL_ suspicious, PUA_/INFO_ info),
+# then the pack's severity_default. severity_cap limits it (riskware never raises the verdict).
+
+[defaults]
+# Mantha Ray editions that load a pack (bundle contract `editions`). "all" = every edition.
+# Provisional until Mantha Ray's edition switchboard exists.
+editions = ["standard"]
+include_score = 4
+review_score = 2
+# Mantha Ray scans game folders and cracked software, not mail, documents, web servers or memory.
+targets_deny = ["ole", "pdf", "rtf", "email", "webshell", "memory", "android", "macho", "lnk"]
+
+# ---------------------------------------------------------------------------------------------
+[categories.core-threats]
+editions = ["all"]          # always loaded in every edition
+aliases = ["core threats", "malware", "threats", "general malware"]
+kind = "detection"
+description = """Malware that could be hidden in a game folder or cracked program on a PC: \
+information stealers, coin miners, loaders and droppers, remote-access trojans, ransomware, \
+persistence, switching off defences, download-and-run and shellcode. Rules for Windows PE, \
+Linux ELF or scripts. Not documents, web shells, phishing or memory-only rules."""
+targets_allow = ["pe", "elf", "script", "zip"]
+severity_default = "suspicious"
+
+  [[categories.core-threats.signals]]
+  label = "threat type"
+  weight = 3
+  fields = ["name", "tags", "description"]
+  terms = ["stealer*", "infostealer*", "info stealer", "password stealer", "grabber", "clipper",
+           "miner", "coinminer", "cryptominer", "cryptojack*", "xmrig", "monero",
+           "loader", "dropper", "downloader", "backdoor", "rat", "remote access trojan",
+           "keylogger", "botnet", "bot", "ransom*", "trojan*", "spyware", "rootkit", "bootkit",
+           "injector", "shellcode", "process hollowing", "reflective", "persistence",
+           "uac bypass", "amsi bypass", "defender exclusion", "disable defender", "wiper"]
+
+  [[categories.core-threats.signals]]
+  label = "family"
+  weight = 3
+  fields = ["name", "tags", "description"]
+  terms = ["redline", "lumma*", "vidar", "raccoon", "stealc", "risepro", "rhadamanthys", "meduza",
+           "phemedrone", "mystic", "cryptbot", "azorult", "agenttesla", "agent tesla", "formbook",
+           "xloader", "snake keylogger", "amadey", "smokeloader", "smoke loader", "privateloader",
+           "nullmixer", "glupteba", "socks5systemz", "djvu", "stop ransomware", "asyncrat",
+           "quasar*", "njrat", "remcos", "dcrat", "darkcomet", "nanocore", "xworm", "venomrat",
+           "bitrat", "warzone", "ave maria", "netwire", "silentcryptominer", "phorpiex", "emotet",
+           "qakbot", "qbot", "icedid", "bumblebee", "pikabot", "latrodectus", "gootloader",
+           "guloader", "darkgate", "cobalt strike", "cobaltstrike", "sliver", "metasploit", "meterpreter"]
+
+  [[categories.core-threats.signals]]
+  label = "threat strings"
+  weight = 2
+  fields = ["strings"]
+  terms = ["stratum+tcp", "stratum+ssl", "\\local state", "login data", "wallet.dat",
+           "\\local storage\\leveldb", "tdata", "add-mppreference", "exclusionpath",
+           "frombase64string", "-encodedcommand", "schtasks /create", "currentversion\\run",
+           "virtualallocex", "writeprocessmemory", "ntunmapviewofsection", "mshta",
+           "certutil -urlcache", "bitsadmin /transfer", "vssadmin delete shadows",
+           "discord.com/api/webhooks", "api.telegram.org/bot"]
+
+  [[categories.core-threats.signals]]
+  label = "abused code-signing certificate"
+  weight = 4
+  fields = ["name", "description"]
+  terms = ["cert blocklist", "certificate blocklist", "blocklisted certificate", "stolen certificate",
+           "revoked certificate", "leaked certificate", "abused certificate"]
+
+  [[categories.core-threats.signals]]
+  label = "malware naming"
+  weight = 3
+  fields = ["name_prefix"]
+  terms = ["mal_", "apt_", "crime_", "ransom", "troj", "win_", "win32_", "win64_", "elf_", "linux_", "malware_"]
+
+  [[categories.core-threats.signals]]
+  label = "malware family rule (Malpedia naming)"
+  weight = 1
+  fields = ["description"]
+  terms = ["detects win", "detects elf", "yara signator"]
+
+  [[categories.core-threats.signals]]
+  label = "executable file gate"
+  weight = 1
+  fields = ["targets"]
+  terms = ["pe", "elf"]
+
+  [[categories.core-threats.signals]]
+  label = "suspicious naming"
+  weight = 1
+  fields = ["name_prefix"]
+  terms = ["susp_", "gen_", "loader_"]
+
+  [[categories.core-threats.signals]]
+  label = "not a detection for files"
+  weight = -3
+  fields = ["name", "tags", "description"]
+  terms = ["pua", "pup", "vuln", "vulnerable", "driver", "test rule", "hacktool", "hktl", "red team",
+           "pentest*", "cve", "exploit kit", "phish*", "maldoc", "webshell"]
+
+# ---------------------------------------------------------------------------------------------
+[categories.games]
+aliases = ["video games", "video game", "game", "gaming", "pc games", "game files"]
+kind = "recognition"
+description = """Rules specific to PC games: game engines and formats (Unity, Unreal, Godot, \
+GameMaker, RPG Maker/nw.js), Steam and other launchers, Steam emulators and crack groups, \
+anti-cheat, game cheats, trainers and mod loaders, fake game launchers, and malware that targets \
+gamers (Steam, Discord, Minecraft or Roblox account theft)."""
+targets_allow = ["pe", "elf", "script", "zip"]
+severity_default = "suspicious"
+
+  [[categories.games.signals]]
+  label = "game terms"
+  weight = 4
+  fields = ["name", "tags"]
+  terms = ["game", "games", "gaming", "gamer*", "steam", "steamworks", "valve", "unity", "unreal",
+           "godot", "gamemaker", "rpg maker", "rpgmaker", "nwjs", "nw.js", "epic games",
+           "battle.net", "uplay", "ubisoft", "rockstar", "riot", "ea app", "gog", "itch.io",
+           "minecraft", "roblox", "fortnite", "valorant", "counter strike", "csgo", "cs2", "dota",
+           "league of legends", "pubg", "genshin", "gta", "apex legends", "warzone game",
+           "cheat*", "aimbot", "wallhack", "anti cheat", "anticheat", "easyanticheat", "battleye",
+           "mod menu", "modloader", "mod loader", "bepinex", "melonloader", "game launcher",
+           "fake launcher", "game crack", "steam emu*", "goldberg", "smartsteamemu", "creamapi",
+           "anticheat*", "game guard", "gameguard", "xigncode", "nprotect", "denuvo"]
+
+  [[categories.games.signals]]
+  label = "game terms in description only"
+  weight = 3
+  fields = ["description"]
+  terms = ["game", "games", "gaming", "gamer*", "steam", "steamworks", "valve", "unity", "unreal",
+           "godot", "gamemaker", "rpg maker", "rpgmaker", "nwjs", "nw.js", "epic games",
+           "battle.net", "uplay", "ubisoft", "rockstar", "riot", "ea app", "gog", "itch.io",
+           "minecraft", "roblox", "fortnite", "valorant", "counter strike", "csgo", "cs2", "dota",
+           "league of legends", "pubg", "genshin", "gta", "apex legends", "warzone game",
+           "cheat*", "aimbot", "wallhack", "anti cheat", "anticheat", "easyanticheat", "battleye",
+           "mod menu", "modloader", "mod loader", "bepinex", "melonloader", "game launcher",
+           "fake launcher", "game crack", "steam emu*", "goldberg", "smartsteamemu", "creamapi",
+           "anticheat*", "game guard", "gameguard", "xigncode", "nprotect", "denuvo"]
+
+  [[categories.games.signals]]
+  label = "game strings"
+  weight = 3
+  fields = ["strings"]
+  terms = ["steam_api", "steamapps", "\\steam\\config", "loginusers.vdf", "ssfn", "steam_emu",
+           "steam_settings", "smartsteamemu", "cream_api", "unityplayer", "unityengine",
+           "gameassembly", "il2cpp", "assembly-csharp", "unrealengine", "ue4-", "godot",
+           "easyanticheat", "battleye", "beservice", ".minecraft", "launcher_profiles.json",
+           "roblosecurity", "roblox", "riot client", "epic games", "battle.net", "nw.dll",
+           "\\growtopia", "\\epic games\\", "\\ubisoft game launcher\\"]
+
+  [[categories.games.signals]]
+  label = "not about games"
+  weight = -3
+  fields = ["name", "tags", "description"]
+  terms = ["gameover", "webshell", "maldoc", "phish*", "server exploit"]
+
+# ---------------------------------------------------------------------------------------------
+[categories.cracked-software]
+aliases = ["cracked software", "cracked", "cracks", "pirated software", "warez", "keygens", "cracked programs"]
+kind = "detection"
+description = """Malware and tools commonly bundled with cracked or pirated software: fake \
+cracks, keygens, patchers and activators (KMS), trojanised installers and repacks, pay-per-install \
+loaders, and the stealers, miners and loaders typically spread through warez and torrent sites \
+(e.g. RedLine, Lumma, Vidar, Stealc, CryptBot, PrivateLoader, SmokeLoader, STOP/Djvu)."""
+targets_allow = ["pe", "elf", "script", "zip"]
+severity_default = "suspicious"
+
+  [[categories.cracked-software.signals]]
+  label = "crack terms"
+  weight = 4
+  fields = ["name", "tags"]
+  terms = ["crack", "cracked", "keygen", "key generator", "patcher", "activator", "kmspico",
+           "kmsauto", "kms activator", "warez", "pirat*", "torrent download", "torrent site", "repack*", "fitgirl",
+           "nulled", "serial generator", "license bypass", "fake installer", "fake setup",
+           "trojanized installer", "trojanised installer", "pay per install", "ppi",
+           "software crack", "free download", "fake crack"]
+
+  [[categories.cracked-software.signals]]
+  label = "crack terms in description only"
+  weight = 2
+  fields = ["description"]
+  terms = ["crack", "cracked", "keygen", "key generator", "patcher", "activator", "kmspico",
+           "kmsauto", "kms activator", "warez", "pirat*", "torrent download", "torrent site", "repack*", "fitgirl",
+           "nulled", "serial generator", "license bypass", "fake installer", "fake setup",
+           "trojanized installer", "trojanised installer", "pay per install", "ppi",
+           "software crack", "free download", "fake crack"]
+
+  [[categories.cracked-software.signals]]
+  label = "families spread through cracks"
+  weight = 3
+  fields = ["name", "tags", "description"]
+  terms = ["redline", "lumma*", "vidar", "raccoon", "stealc", "risepro", "cryptbot", "mystic",
+           "privateloader", "nullmixer", "smokeloader", "smoke loader", "amadey", "glupteba",
+           "socks5systemz", "djvu", "stop ransomware", "fabookie", "silentcryptominer",
+           "rhadamanthys", "meduza", "phemedrone", "xmrig", "coinminer"]
+
+  [[categories.cracked-software.signals]]
+  label = "crack strings"
+  weight = 2
+  fields = ["strings"]
+  terms = ["keygen", "crack.exe", "patch.exe", "kmspico", "kmsauto", "activator", "setup_x64",
+           "password: 1234", "unpack with password", "slmgr", "sppsvc"]
+
+  [[categories.cracked-software.signals]]
+  label = "general stealer/miner/loader"
+  weight = 1
+  fields = ["name", "tags", "description"]
+  terms = ["stealer*", "infostealer*", "miner", "coinminer", "loader", "dropper"]
+
+  [[categories.cracked-software.signals]]
+  label = "not about cracked software"
+  weight = -3
+  fields = ["name", "tags", "description"]
+  terms = ["password crack*", "hash crack*", "pwd crack", "crackmapexec", "torrentlocker", "webshell", "maldoc", "phish*", "cve"]
+
+# ---------------------------------------------------------------------------------------------
+[categories.riskware]
+aliases = ["dual-use", "dual use", "pua", "potentially unwanted", "hack tools", "hacktools", "remote admin tools"]
+kind = "recognition"
+label = "potentially unwanted / dual-use"
+description = """Dual-use and potentially unwanted tools found next to cracked games: trainers, \
+cheat tools, keygens and patchers, remote administration tools, password-recovery tools, \
+process and memory editors, DLL injectors, adware and bundlers. Labelled, never raises the verdict."""
+targets_allow = ["pe", "elf", "script", "zip"]
+severity_default = "info"
+severity_cap = "info"
+
+  [[categories.riskware.signals]]
+  label = "dual-use naming"
+  weight = 3
+  fields = ["name_prefix"]
+  terms = ["hktl_", "pua_", "pup_", "riskware", "adware", "hacktool"]
+
+  [[categories.riskware.signals]]
+  label = "dual-use terms"
+  weight = 4
+  fields = ["name", "tags"]
+  terms = ["hacktool", "hack tool", "pua", "pup", "potentially unwanted", "riskware", "adware",
+           "bundler", "remote admin*", "remote administration", "rmm", "anydesk", "teamviewer",
+           "ammyy", "rustdesk", "radmin", "remote utilities", "netsupport", "screenconnect",
+           "atera", "cheat engine", "trainer", "keygen", "patcher", "password recovery",
+           "nirsoft", "lazagne", "process hacker", "processhacker", "system informer",
+           "dll injector", "injector", "memory editor", "artmoney", "wemod"]
+
+  [[categories.riskware.signals]]
+  label = "dual-use terms in description only"
+  weight = 2
+  fields = ["description"]
+  terms = ["hacktool", "hack tool", "pua", "pup", "potentially unwanted", "riskware", "adware",
+           "bundler", "remote admin*", "remote administration", "rmm", "anydesk", "teamviewer",
+           "ammyy", "rustdesk", "radmin", "remote utilities", "netsupport", "screenconnect",
+           "atera", "cheat engine", "trainer", "keygen", "patcher", "password recovery",
+           "nirsoft", "lazagne", "process hacker", "processhacker", "system informer",
+           "dll injector", "injector", "memory editor", "artmoney", "wemod"]
+
+  [[categories.riskware.signals]]
+  label = "vulnerable driver (drivers-kernel pack)"
+  weight = -6
+  fields = ["name", "description"]
+  terms = ["vuln driver", "vulnerable driver", "renamed driver", "driver"]
+
+# ---------------------------------------------------------------------------------------------
+[categories.linux-proton]
+aliases = ["linux", "proton", "wine", "linux proton", "elf"]
+kind = "detection"
+description = """Threats to a Linux desktop running games through Wine/Proton: Linux ELF malware \
+(miners, botnets, backdoors, rootkits), malicious shell installers, LD_PRELOAD hijacking, \
+user-level systemd units, cron and XDG autostart persistence, and AppImage or .desktop abuse."""
+targets_allow = ["elf", "script"]
+targets_deny = ["pe", "ole", "pdf", "rtf", "email", "webshell", "memory", "android", "macho", "lnk"]
+severity_default = "suspicious"
+
+  [[categories.linux-proton.signals]]
+  label = "linux terms"
+  weight = 3
+  fields = ["name", "tags", "description"]
+  terms = ["linux", "elf", "unix", "ld_preload", "ld.so.preload", "rootkit", "systemd", "crontab",
+           "cron", "bashrc", "autostart", "xdg", "desktop entry", "appimage", "wine", "proton",
+           "shell script", "bash", "mirai", "gafgyt", "bashlite", "xorddos", "xor ddos", "kinsing",
+           "tsunami", "kaiten", "bpfdoor", "symbiote", "ebpf", "orbit", "ddos", "tsunami"]
+
+  [[categories.linux-proton.signals]]
+  label = "linux strings"
+  weight = 3
+  fields = ["strings"]
+  terms = ["/etc/ld.so.preload", "ld_preload", ".config/autostart", "systemctl --user",
+           ".config/systemd/user", "crontab -", "/dev/shm", "/tmp/.", "chmod +x", "| sh", "| bash",
+           "nohup ", "/proc/self/exe", "/etc/rc.local", "stratum+tcp", "/.bashrc", "/.profile"]
+
+  [[categories.linux-proton.signals]]
+  label = "ELF file gate"
+  weight = 2
+  fields = ["targets"]
+  terms = ["elf"]
+
+  [[categories.linux-proton.signals]]
+  label = "threat type"
+  weight = 1
+  fields = ["name", "tags", "description"]
+  terms = ["miner", "backdoor", "botnet", "rootkit", "stealer*", "trojan*"]
+
+  [[categories.linux-proton.signals]]
+  label = "not a detection for files"
+  weight = -3
+  fields = ["name", "tags", "description"]
+  terms = ["vuln", "cve", "webshell", "hacktool", "hktl"]
+
+# ---------------------------------------------------------------------------------------------
+[categories.drivers-kernel]
+aliases = ["drivers", "kernel drivers", "vulnerable drivers", "kernel"]
+kind = "detection"
+description = """Windows kernel drivers: known vulnerable drivers abused to switch off security tools (bring your own vulnerable driver), malicious or rootkit drivers, and anti-cheat drivers. Stretch-goal pack; the anti-cheat part may move into games."""
+targets_allow = ["pe"]
+severity_default = "suspicious"
+
+  [[categories.drivers-kernel.signals]]
+  label = "driver"
+  weight = 4
+  fields = ["name", "tags", "description"]
+  terms = ["driver", "drivers", "sys file", "kernel", "byovd", "loldrivers", "rootkit"]
+
+  [[categories.drivers-kernel.signals]]
+  label = "driver strings"
+  weight = 2
+  fields = ["strings", "condition"]
+  terms = [".sys", "ntoskrnl", "iofcompleterequest", "pe.subsystem == pe.subsystem_native"]

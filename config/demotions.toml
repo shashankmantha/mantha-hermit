@@ -1,0 +1,11 @@
+# Rules you've decided against. One entry per rule; a reason is required.
+#   action = "info"  keep it in the pack, but it can't raise the verdict
+#   action = "drop"  leave it out of the pack
+# Optional: source = "<source name>", category = "<pack>" to narrow it.
+# `hermit test <pack> --clean DIR` writes demotions.suggested.toml to copy from.
+#
+# [[demote]]
+# rule = "SUSP_Example_Rule"
+# category = "games"
+# action = "info"
+# reason = "fires on Godot .pck files in koipond"
