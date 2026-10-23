@@ -478,7 +478,7 @@ Planned work includes:
 ## Related projects
 
 - **Mantha Ray** — local static malware triage for Linux, using ClamAV, capa, FLOSS, and a YARA-X stage that loads Hermit's packs
-- **Mantha Reef** — a VS Code extension that scans workspaces for security issues and uses Mantha Ray to triage files
+
 
 ## Responsible use
 
