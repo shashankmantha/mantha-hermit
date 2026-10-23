@@ -11,6 +11,7 @@ import gzip
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import tarfile
@@ -66,11 +67,19 @@ def load_state(s: BundleSettings) -> dict:
 
 
 def next_version(state: dict, today: str) -> str:
+    """YYYY.M.D.N, always newer than every published version (installs refuse older bundles,
+    so a clock that went backwards must not produce one)."""
     y, m, d = today.split("-")
-    prefix = f"{int(y)}.{int(m)}.{int(d)}."
-    n = [int(v["bundle_version"].rsplit(".", 1)[1]) for v in state["published"]
-         if v["bundle_version"].startswith(prefix)]
-    return prefix + str(max(n, default=0) + 1)
+    date = (int(y), int(m), int(d))
+    published = [contract.bundle_version_key(v["bundle_version"]) for v in state["published"]]
+    latest = max(published, default=None)
+    if latest and latest[:3] >= date:
+        date = latest[:3]
+    n = max((k[3] for k in published if k[:3] == date), default=0) + 1
+    return ".".join(str(x) for x in (*date, n))
+
+
+SIGNED_COMMENT_RE = re.compile(r"^mantha-packs (\S+) sha256:([0-9a-f]{64})$")
 
 
 def describe_changes(old: dict, new: dict) -> str:
@@ -220,19 +229,37 @@ def safe_extract(tarball: Path, dest: Path) -> None:
         tar.extractall(dest, members=members, filter="data")
 
 
-def verify_bundle(tarball: Path, public_key_text: str, *, compile_rules: bool = True) -> dict:
-    """Signature first, then a safe unpack into a temporary folder, then strict validation."""
+def verify_bundle(tarball: Path, public_key_text: str, *, compile_rules: bool = True,
+                  installed_version: str | None = None) -> dict:
+    """What Mantha Ray's updater does, in order:
+    1. the signature, and the signed comment's exact form (`mantha-packs <version> sha256:<hash>`);
+    2. the archive's sha256 against the signed hash;
+    3. rollback: a signed but older bundle than `installed_version` is refused;
+    4. a safe unpack into a temporary folder, strict validation, and the manifest's
+       bundle_version against the signed version (exact match)."""
     sig = tarball.with_name(tarball.name + ".minisig")
     if not sig.is_file():
         raise BundleError(f"no signature next to the bundle ({sig.name})")
     comment = signing.verify_file(tarball, sig, public_key_text)
+    m = SIGNED_COMMENT_RE.match(comment)
+    if not m:
+        raise BundleError(f"signed comment '{comment}' isn't 'mantha-packs <version> sha256:<hash>'")
+    signed_version, signed_sha = m.groups()
+    if not contract.BUNDLE_VERSION_RE.match(signed_version):
+        raise BundleError(f"signed comment names a bad version {signed_version!r}")
+    if contract.sha256_file(tarball) != signed_sha:
+        raise BundleError("the archive's sha256 doesn't match the signed comment")
+    if installed_version and (contract.bundle_version_key(signed_version)
+                              < contract.bundle_version_key(installed_version)):
+        raise BundleError(f"bundle {signed_version} is older than the installed {installed_version} "
+                          "(rollback refused; only a local, explicit rollback may install an older bundle)")
     with tempfile.TemporaryDirectory() as tmp:
         safe_extract(tarball, Path(tmp))
         summary = contract.validate_bundle(Path(tmp), compile_rules=compile_rules)
-    expected = f"mantha-packs {summary['bundle_version']}"
-    if not comment.startswith(expected):
-        raise BundleError(f"signed comment '{comment}' doesn't name this bundle version ({expected})")
+    if summary["bundle_version"] != signed_version:
+        raise BundleError(f"manifest says {summary['bundle_version']} but the signature is for {signed_version}")
     summary["trusted_comment"] = comment
+    summary["same_as_installed"] = installed_version == signed_version
     return summary
 
 
@@ -246,6 +273,9 @@ def publish(cfg, log, *, only: list[str] | None, push: bool, allow_version_misma
         raise BundleError(f"no signing key at {s.secret_key}; create one with `hermit keygen`")
     if not s.public_key.is_file():
         raise BundleError(f"no public key at {s.public_key}; `hermit keygen` writes it there")
+    if not signing.is_encrypted(s.secret_key):
+        log("Warning: the signing key has no password. That's fine for testing, but a release key "
+            "can push rules to every install: protect it with `minisign -C -s " + str(s.secret_key) + "`")
     state = load_state(s)
     version = next_version(state, datetime.now(timezone.utc).strftime("%Y-%m-%d"))
     out = s.out_dir / version

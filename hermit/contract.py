@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 from pathlib import Path
 
@@ -64,10 +65,28 @@ def sha256_file(p: Path) -> str:
     return h.hexdigest()
 
 
+def bundle_version_key(version: str) -> tuple[int, ...]:
+    """Sort key for bundle versions: 2026.10.22.12 > 2026.10.22.2 (compared as numbers, not text)."""
+    if not BUNDLE_VERSION_RE.match(version):
+        raise ContractError(f"bad bundle version {version!r}")
+    return tuple(int(x) for x in version.split("."))
+
+
 def pack_digest(pack_dir: Path) -> str:
     """sha256 over the pack folder's contents: one line "<sha256>  <relative path>\\n" per file,
-    sorted by path (the same text `sha256sum` prints, so it can be checked by hand)."""
-    files = sorted((p.relative_to(pack_dir).as_posix(), p) for p in pack_dir.rglob("*") if p.is_file())
+    sorted by path (the same text `sha256sum` prints, so it can be checked by hand).
+    Refuses symlinks anywhere in the folder, so it never hashes (or reads) a file outside it."""
+    if pack_dir.is_symlink():
+        raise ContractError(f"pack {pack_dir.name}: the pack folder is a symlink")
+    files = []
+    for dirpath, dirnames, filenames in os.walk(pack_dir, followlinks=False):
+        for name in dirnames + filenames:
+            p = Path(dirpath, name)
+            if p.is_symlink():
+                raise ContractError(f"pack {pack_dir.name}: symlinks are not allowed "
+                                    f"({p.relative_to(pack_dir).as_posix()})")
+        files += [(Path(dirpath, f).relative_to(pack_dir).as_posix(), Path(dirpath, f)) for f in filenames]
+    files.sort()
     lines = [f"{sha256_file(p)}  {rel}\n" for rel, p in files]
     return hashlib.sha256("".join(lines).encode()).hexdigest()
 

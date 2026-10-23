@@ -742,11 +742,14 @@ async function exportBundle() {
 function publishDialog() {
   const s = state.status || {};
   const push = h("input", { type: "checkbox", id: "pub-push", checked: !!s.release_repo, disabled: !s.release_repo });
-  const ready = s.has_secret_key && s.has_public_key;
+  const ready = s.has_secret_key && s.has_public_key && !s.key_protected;
+  const keyText = !(s.has_secret_key && s.has_public_key) ? "missing: run hermit keygen"
+    : s.key_protected ? "password-protected: run hermit publish in a terminal"
+    : "ready (no password: fine for testing, not for releases)";
   openDialog("Publish a signed bundle", [
     h("p", { text: "Hermit builds a bundle of every live pack, leaves out rules without a known licence, signs it with your minisign key and verifies it the way Mantha Ray will." }),
     h("dl", {},
-      h("dt", { text: "Signing key" }), h("dd", { text: ready ? "ready" : "missing: run hermit keygen" }),
+      h("dt", { text: "Signing key" }), h("dd", { text: keyText }),
       h("dt", { text: "Release repo" }), h("dd", { text: s.release_repo || "not set ([bundle] release_repo)" })),
     h("label", { class: "toggle" }, push, "Create a GitHub release")],
   [h("button", { class: "btn", type: "button", onclick: closeDialog }, "Cancel"),
@@ -777,7 +780,7 @@ function settingsDialog() {
       h("dt", { text: "Ollama endpoint" }), h("dd", { text: s.endpoint || "" }),
       h("dt", { text: "Clean folders" }), h("dd", { text: (s.clean_dirs || []).join(", ") || "none: rules aren't tested against clean files" }),
       h("dt", { text: "Rule sources" }), h("dd", { text: (s.sources || []).map((x) => `${x.name}${x.revision ? ` (${x.revision})` : ""}`).join(", ") || "none fetched" }),
-      h("dt", { text: "Signing key" }), h("dd", { text: s.has_secret_key ? "present" : "missing (hermit keygen)" }),
+      h("dt", { text: "Signing key" }), h("dd", { text: !s.has_secret_key ? "missing (hermit keygen)" : s.key_protected ? "present, password-protected" : "present, no password" }),
       h("dt", { text: "Release repo" }), h("dd", { text: s.release_repo || "not set" }))]);
 }
 

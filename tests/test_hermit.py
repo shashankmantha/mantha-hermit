@@ -321,7 +321,7 @@ class ContractTests(unittest.TestCase):
         first = contract.sha256_file(tb)
         bundle.make_tarball(tree, self.root / "again.tar.gz")
         self.assertEqual(first, contract.sha256_file(self.root / "again.tar.gz"))  # reproducible
-        signing.sign_file(tb, self.root / "k.key", f"mantha-packs {v}")
+        signing.sign_file(tb, self.root / "k.key", f"mantha-packs {v} sha256:{first}")
         pub = (self.root / "k.pub").read_text()
         self.assertEqual(bundle.verify_bundle(tb, pub)["bundle_version"], v)
         data = bytearray(tb.read_bytes())
@@ -329,6 +329,53 @@ class ContractTests(unittest.TestCase):
         tb.write_bytes(bytes(data))
         with self.assertRaises(signing.SignatureError):
             bundle.verify_bundle(tb, pub)
+
+    def _signed(self, version: str, comment: str | None = None) -> tuple[Path, str]:
+        if not (self.root / "k.key").exists():
+            signing.generate_keypair(self.root / "k.pub", self.root / "k.key")
+        tree = self.root / f"tree-{version}"
+        bundle.build_tree(self.cfg, tree, lambda m: None, version=version)
+        tb = self.root / f"mantha-packs-{version}.tar.gz"
+        bundle.make_tarball(tree, tb)
+        sha = contract.sha256_file(tb)
+        signing.sign_file(tb, self.root / "k.key", comment or f"mantha-packs {version} sha256:{sha}")
+        return tb, (self.root / "k.pub").read_text()
+
+    def test_signed_comment_must_match_exactly(self):
+        tb, pub = self._signed("2026.10.22.12", "mantha-packs 2026.10.22.1 sha256:" + "0" * 64)
+        with self.assertRaises(bundle.BundleError):  # was accepted by the old prefix match
+            bundle.verify_bundle(tb, pub)
+        tb, pub = self._signed("2026.10.22.3", "mantha-packs 2026.10.22.3")  # no hash
+        with self.assertRaises(bundle.BundleError):
+            bundle.verify_bundle(tb, pub)
+        tb, pub = self._signed("2026.10.22.4", "mantha-packs 2026.10.22.4 sha256:" + "a" * 64)  # wrong hash
+        with self.assertRaisesRegex(bundle.BundleError, "sha256"):
+            bundle.verify_bundle(tb, pub)
+
+    def test_rollback_refused(self):
+        old, pub = self._signed("2026.10.9.1")
+        new, _ = self._signed("2026.10.22.1")
+        with self.assertRaisesRegex(bundle.BundleError, "rollback"):
+            bundle.verify_bundle(old, pub, installed_version="2026.10.22.1")
+        self.assertTrue(bundle.verify_bundle(new, pub, installed_version="2026.10.22.1")["same_as_installed"])
+        self.assertFalse(bundle.verify_bundle(new, pub, installed_version="2026.10.9.1")["same_as_installed"])
+
+    def test_versions_compare_as_numbers_and_never_go_back(self):
+        self.assertGreater(contract.bundle_version_key("2026.10.22.12"), contract.bundle_version_key("2026.10.22.2"))
+        self.assertGreater(contract.bundle_version_key("2026.10.9.1"), contract.bundle_version_key("2026.9.30.5"))
+        state = {"published": [{"bundle_version": "2026.10.22.12"}, {"bundle_version": "2026.10.22.2"}]}
+        self.assertEqual(bundle.next_version(state, "2026-10-22"), "2026.10.22.13")
+        self.assertEqual(bundle.next_version(state, "2026-10-21"), "2026.10.22.13")  # clock went back
+        self.assertEqual(bundle.next_version(state, "2026-10-23"), "2026.10.23.1")
+
+    def test_digest_refuses_symlinks(self):
+        out = self.root / "b"
+        bundle.build_tree(self.cfg, out, lambda m: None)
+        secret = self.root / "outside.txt"
+        secret.write_text("not part of the pack")
+        (out / "packs" / "games" / "rules" / "x.yar").symlink_to(secret)
+        with self.assertRaisesRegex(contract.ContractError, "symlink"):
+            contract.pack_digest(out / "packs" / "games")
 
     def test_safe_extract_rejects_escape(self):
         tb = self.root / "evil.tar.gz"

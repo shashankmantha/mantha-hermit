@@ -436,11 +436,13 @@ def cmd_verify(cfg, args):
     if not pub.is_file():
         raise SystemExit(f"public key {pub} not found (pass --pubkey)")
     try:
-        s = verify_bundle(Path(args.bundle), pub.read_text(), compile_rules=not args.no_compile)
+        s = verify_bundle(Path(args.bundle), pub.read_text(), compile_rules=not args.no_compile,
+                          installed_version=args.installed)
     except (BundleError, ContractError, SignatureError) as exc:
         raise SystemExit(f"REJECTED: {exc}")
     print(f"OK: bundle {s['bundle_version']} (signed: \"{s['trusted_comment']}\"), "
-          f"YARA-X {s['yara_x_version']}, needs Mantha Ray >= {s['min_app_version']}")
+          f"YARA-X {s['yara_x_version']}, needs Mantha Ray >= {s['min_app_version']}"
+          + (" (same as installed: nothing to update)" if s["same_as_installed"] else ""))
     for p in s["packs"]:
         print(f"  {p['id']} v{p['version']}: {p['rules']} rule{'' if p['rules'] == 1 else 's'}"
               + (f", {p['without_severity']} without a severity (treated as info)" if p["without_severity"] else ""))
@@ -462,16 +464,21 @@ def cmd_validate(cfg, args):
 
 def cmd_keygen(cfg, args):
     from .bundle import BundleSettings
-    from .signing import SignatureError, generate_keypair
+    from .signing import SignatureError, generate_keypair, generate_protected_keypair
     s = BundleSettings(cfg)
     try:
-        line = generate_keypair(s.public_key, s.secret_key, force=args.force)
+        if args.no_password:
+            line = generate_keypair(s.public_key, s.secret_key, force=args.force)
+        else:
+            line = generate_protected_keypair(s.public_key, s.secret_key, force=args.force)
     except SignatureError as exc:
         raise SystemExit(str(exc))
     log(f"Secret key: {s.secret_key} (owner-only permissions; never commit it; back it up offline)")
     log(f"Public key: {s.public_key}  ->  copy this file into Mantha Ray's repo")
     log(f"  {line}")
-    log("The key has no password, so scheduled publishing works. To add one: minisign -C -s " + str(s.secret_key))
+    if args.no_password:
+        log("This key has no password: use it for demos and testing only. A release key can push rules "
+            "to every install; run `hermit keygen` without --no-password for that.")
 
 
 def cmd_serve(cfg, args):
@@ -625,6 +632,8 @@ def main(argv=None):
     p.add_argument("bundle")
     p.add_argument("--pubkey", help="public key file (default: [bundle] public_key)")
     p.add_argument("--no-compile", action="store_true", help="skip compiling the rules")
+    p.add_argument("--installed", metavar="VERSION",
+                   help="the installed bundle_version: refuse an older bundle, as the updater does")
     p.set_defaults(fn=cmd_verify)
 
     p = sub.add_parser("validate", help="strict contract check of a bundle folder or a pack folder")
@@ -634,6 +643,8 @@ def main(argv=None):
 
     p = sub.add_parser("keygen", help="create the minisign key pair for signing bundles")
     p.add_argument("--force", action="store_true")
+    p.add_argument("--no-password", action="store_true",
+                   help="no password (demos and testing only; needs no minisign tool)")
     p.set_defaults(fn=cmd_keygen)
 
     p = sub.add_parser("serve", help="open the app in its own window (127.0.0.1 only)")

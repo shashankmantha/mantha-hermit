@@ -49,7 +49,8 @@ def load_public_key(text: str) -> tuple[bytes, Ed25519PublicKey]:
 
 
 def generate_keypair(pub_path: Path, sec_path: Path, force: bool = False) -> str:
-    """A password-free key pair, the same as `minisign -G -W`. Returns the public key line."""
+    """A password-free key pair, the same as `minisign -G -W`: for demos, tests and local use,
+    not for the release key. Returns the public key line."""
     for p in (pub_path, sec_path):
         if p.exists() and not force:
             raise SignatureError(f"{p} already exists (use --force to replace it)")
@@ -83,6 +84,32 @@ def _load_secret(sec_path: Path) -> tuple[bytes, Ed25519PrivateKey] | None:
     if chk != b"\0" * 32 and hashlib.blake2b(raw[:2] + key_id + sk, digest_size=32).digest() != chk:
         raise SignatureError("secret key: checksum mismatch (corrupted file?)")
     return key_id, Ed25519PrivateKey.from_private_bytes(sk[:32])
+
+
+def is_encrypted(sec_path: Path) -> bool:
+    """True if the secret key is password-protected."""
+    return _load_secret(sec_path) is None
+
+
+def generate_protected_keypair(pub_path: Path, sec_path: Path, force: bool = False) -> str:
+    """A password-protected key pair, made by the minisign tool (it asks for the password).
+    Returns the public key line."""
+    exe = shutil.which("minisign")
+    if not exe:
+        raise SignatureError("the minisign tool is needed for a password-protected key "
+                             "(install it, or use --no-password for a test key)")
+    for p in (pub_path, sec_path):
+        if p.exists() and not force:
+            raise SignatureError(f"{p} already exists (use --force to replace it)")
+    sec_path.parent.mkdir(parents=True, exist_ok=True)
+    pub_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        subprocess.run([exe, "-G", "-p", str(pub_path), "-s", str(sec_path)] + (["-f"] if force else []),
+                       check=True)
+    except subprocess.CalledProcessError as exc:
+        raise SignatureError(f"minisign -G failed (exit {exc.returncode})") from None
+    os.chmod(sec_path, 0o600)
+    return pub_path.read_text().splitlines()[1]
 
 
 def sign_file(path: Path, sec_path: Path, trusted_comment: str) -> Path:

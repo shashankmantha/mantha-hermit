@@ -169,6 +169,7 @@ class App:
                 "llm_enabled": self.cfg.llm_enabled, "ollama_ok": ok, "models": models,
                 "sources": sources, "clean_dirs": auto.get("clean_dirs", []),
                 "release_repo": b.release_repo, "has_secret_key": b.secret_key.is_file(),
+                "key_protected": self._key_protected(b.secret_key),
                 "has_public_key": b.public_key.is_file(),
                 "busy": self.busy.view(10**9) if self.busy else None}
 
@@ -382,8 +383,19 @@ class App:
         self.start_job(job, work)
         return {"job": job.id}
 
+    @staticmethod
+    def _key_protected(path) -> bool | None:
+        from .signing import SignatureError, is_encrypted
+        try:
+            return is_encrypted(path) if path.is_file() else None
+        except (OSError, SignatureError):
+            return None
+
     def publish(self, body: dict) -> dict:
-        from .bundle import publish
+        from .bundle import BundleSettings, publish
+        if self._key_protected(BundleSettings(self.cfg).secret_key):
+            raise ApiError(409, "The signing key has a password, which the app can't ask for. "
+                                "Run `hermit publish` in a terminal.")
         job = Job("publish", "sign and publish a bundle")
 
         def work(j: Job):
