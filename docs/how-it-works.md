@@ -15,9 +15,9 @@ Reference for running Hermit as the pack maintainer. The [README](../README.md) 
 | `hermit rollback <pack> [--to N]` | Restore an earlier version (saved as a new version) |
 | `hermit explain <rule>` | File types, score in every pack and each reason |
 | `hermit export-bundle --unsigned DIR` | The live packs as an unsigned bundle folder (contract v1) |
-| `hermit keygen` | Create the minisign key pair for signing bundles |
+| `hermit keygen [--no-password]` | Create the minisign key pair for signing bundles (password-protected unless `--no-password`) |
 | `hermit publish [--no-push]` | Build, sign, verify and (with `release_repo` set) create a GitHub release |
-| `hermit verify <bundle.tar.gz>` | What Mantha Ray's updater does: signature, safe unpack, strict validation |
+| `hermit verify <bundle.tar.gz> [--installed V]` | What Mantha Ray's updater does: signature, signed version and hash, rollback check, safe unpack, strict validation |
 | `hermit validate <dir>` | Strict contract check of a bundle folder or a pack folder |
 | `hermit serve [--browser] [--port N]` | The app, in its own window (needs the `desktop` extra) or in your browser |
 | `hermit desktop-entry [--remove]` | Add the app to your desktop's app menu |
@@ -97,7 +97,7 @@ Each rule's dependencies (private and global rules) are stored with it, so a pac
 ## Publishing
 
 ```
-hermit keygen                 # once: secret key outside the repo, public key in config/minisign.pub
+hermit keygen                 # once: password-protected secret key outside the repo, public key in config/minisign.pub
 hermit publish --no-push      # build, sign, verify locally
 hermit publish                # ... and create a GitHub release on [bundle] release_repo (needs gh)
 ```
@@ -106,11 +106,13 @@ What `publish` does:
 
 1. Checks that the installed YARA-X matches `[bundle] yara_x_version`, the version Mantha Ray pins.
 2. Builds the bundle, applying the licence filter (`require_licence`, `allowed_licences`).
-3. Writes a deterministic `tar.gz` and signs it in minisign format.
+3. Writes a deterministic `tar.gz` and signs it in minisign format, with the trusted comment `mantha-packs <version> sha256:<hash>`.
 4. Verifies the result exactly as Mantha Ray will.
+
+Versions always increase, even if the clock goes backwards, because Mantha Ray refuses a bundle older than the one it has installed.
 5. Records the version only after any push succeeds, so a failed push can simply be re-run.
 
-`hermit keygen` makes a password-free key, so scheduled publishing works. To protect the key with a password instead, use `minisign -G` or `minisign -C`; `publish` then calls the `minisign` tool, which asks for the password.
+`hermit keygen` makes a password-protected key with the `minisign` tool, and `publish` asks for the password when it signs. The release key can push rules to every install, so keep it that way. Publish from a terminal: the app can't ask for the password, so it won't publish with a protected key. `hermit keygen --no-password` makes a key without a password, which needs no `minisign` tool, for demos and testing only; `publish` warns when it signs with one.
 
 ## The app (`hermit serve`)
 

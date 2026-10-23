@@ -73,7 +73,9 @@ Rule selection is constrained by the following controls:
 
 Published bundles are protected by:
 
-- minisign (Ed25519) signatures, with the trusted comment bound to the bundle version and hash
+- minisign (Ed25519) signatures from a password-protected release key
+- A trusted comment that binds the signature to the exact bundle version and archive hash
+- Rollback protection: installs refuse a signed bundle older than the one they have
 - Per-pack SHA-256 digests compatible with `sha256sum`
 - Deterministic archives
 - Extraction that rejects links, absolute paths, and path traversal
@@ -95,14 +97,14 @@ Mantha Hermit currently targets Linux.
 Required software:
 
 - Git
-- Python 3.11 or later
+- Python 3.11.4 or later
 - Python virtual-environment support
 
 Optional software:
 
 - [Ollama](https://ollama.com) and an instruct model for borderline judging and free-form requests
 - The GitHub CLI (`gh`) for publishing releases
-- `minisign` for signing with a password-protected key
+- `minisign` for creating and using the password-protected release key
 
 ### Fedora and Nobara
 
@@ -292,13 +294,13 @@ Each rule's dependencies are stored with it, so a pack can be rebuilt or rolled 
 
 ## Publishing bundles
 
-Generate a signing key once:
+Generate the release key once:
 
 ```bash
 hermit keygen
 ```
 
-The secret key is written outside the repository and the public key to `config/minisign.pub`.
+The secret key is password-protected, created with `minisign`, and written outside the repository. The public key is written to `config/minisign.pub`. The release key can push rules to every Mantha Ray install, so always keep it password-protected and publish from a terminal, where `minisign` can ask for the password. For demos and testing, `hermit keygen --no-password` creates a key that needs no password; `publish` warns when it signs with one.
 
 Build, sign, and verify a bundle locally:
 
@@ -320,10 +322,11 @@ Publishing:
 4. Verifies the archive exactly as Mantha Ray will
 5. Records the version only after the release succeeds
 
-Verify any bundle:
+Verify any bundle the way Mantha Ray's updater does:
 
 ```bash
 hermit verify <bundle.tar.gz>
+hermit verify <bundle.tar.gz> --installed 2026.10.22.1   # also refuse a rollback
 ```
 
 Export an unsigned bundle folder for local testing:
@@ -478,7 +481,7 @@ Planned work includes:
 ## Related projects
 
 - **Mantha Ray** — local static malware triage for Linux, using ClamAV, capa, FLOSS, and a YARA-X stage that loads Hermit's packs
-
+- **Mantha Reef** — a VS Code extension that scans workspaces for security issues and uses Mantha Ray to triage files
 
 ## Responsible use
 

@@ -25,7 +25,7 @@ Nothing else may appear: no extra files, no symlinks, no links or special files 
 | Field | Type | Meaning |
 |---|---|---|
 | `format` | int | `1` |
-| `bundle_version` | string | `YYYY.M.D.N`, e.g. `2026.10.25.1`; increases with every publish |
+| `bundle_version` | string | `YYYY.M.D.N`, e.g. `2026.10.25.1`; strictly increases with every publish. Compare as four integers, never as text: `2026.10.22.12` is newer than `2026.10.22.2` |
 | `created_at` | string | UTC, `2026-10-25T03:00:00Z` |
 | `min_app_version` | string | `X.Y.Z`; the oldest Mantha Ray that can use this bundle. Older installs refuse it politely |
 | `yara_x_version` | string | YARA-X version that built any `pack.yarx` |
@@ -94,7 +94,8 @@ cd packs/games && find . -type f | sed 's|^\./||' | LC_ALL=C sort | xargs sha256
 
 [minisign](https://jedisct1.github.io/minisign/) (Ed25519, prehashed with BLAKE2b-512), as a detached `.minisig` next to the archive.
 
-- **Trusted comment:** `mantha-packs <bundle_version> sha256:<archive sha256>`. Verifiers check that it names the version inside the manifest.
+- **Trusted comment:** exactly `mantha-packs <bundle_version> sha256:<archive sha256>` (64 lowercase hex digits). Verifiers parse it as a whole, never by prefix: `mantha-packs 2026.10.22.1` must not match a comment for `2026.10.22.12`.
+- **The release key is password-protected** (`hermit keygen`, which uses `minisign -G`). It can push rules to every install, so it is never stored without a password. `hermit keygen --no-password` makes keys for demos and tests only.
 - **The public key** (`minisign.pub`) ships in Mantha Ray's repository. The secret key stays on the owner's machine, outside any repository, with an offline backup.
 - **Key rotation.** Ship the new public key in a Mantha Ray code update, then sign with the new key. If a key leaks, publish a code update that removes it.
 - **Verifying with the minisign tool:** `minisign -Vm mantha-packs-<version>.tar.gz -p minisign.pub`
@@ -102,11 +103,24 @@ cd packs/games && find . -type f | sed 's|^\./||' | LC_ALL=C sort | xargs sha256
 ## How the updater should verify (in order)
 
 1. **Verify the signature** of the downloaded archive against the bundled public key. If the check fails, stop.
-2. **Check the trusted comment** names a version, and the manifest's `bundle_version` matches it.
-3. **Unpack safely** into a fresh folder: plain files and folders only, no path escapes, with size and file-count limits.
-4. **Validate** the manifest, pack hashes, `pack.json` and `severities.json` as above, and compile every rule file.
-5. **Check `min_app_version`** against the running Mantha Ray.
-6. **Switch to the new data atomically.** On any failure, keep the current data and report why.
+2. **Parse the trusted comment exactly** as `mantha-packs <version> sha256:<hash>`. Reject anything else.
+3. **Check the archive's SHA-256** against the signed hash.
+4. **Refuse rollbacks.** If the signed version is older than the installed `bundle_version`, stop: see "Rollback protection". If it is the same, there is nothing to update.
+5. **Unpack safely** into a fresh folder: plain files and folders only, no path escapes, with size and file-count limits.
+6. **Validate** the manifest, pack hashes, `pack.json` and `severities.json` as above, and compile every rule file. The manifest's `bundle_version` must equal the signed version exactly.
+7. **Check `min_app_version`** against the running Mantha Ray.
+8. **Switch to the new data atomically**, and record the installed `bundle_version`. On any failure, keep the current data and report why.
+
+`hermit verify <bundle.tar.gz> --installed <version>` performs steps 1 to 6 and is the reference implementation.
+
+### Rollback protection
+
+A signature proves who made a bundle, not that it is the latest one. Someone who controls the download (a compromised mirror, a hostile network, a tampered cache) could serve an older bundle that is genuinely signed, for example one from before a threat rule was added, and it would pass every other check.
+
+- **The updater refuses any bundle whose signed `bundle_version` is older than the installed one.** The installed version is stored outside the bundle data, where an update cannot overwrite it before the check.
+- **Going back is a local, explicit action only** (for example `mantha-ray packs --rollback`), run by the user on their own machine, never triggered by a download.
+- **Hermit never publishes a version older than one it has already published**, even if the clock goes backwards.
+- **Freeze attacks** (withholding new bundles so an install keeps using old data) can't be detected from the signature alone. The updater should warn when the installed bundle's `created_at` is more than 30 days old.
 
 ## Licences
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mantha-hermit"
-version = "0.4.1"
+version = "0.4.2"
 description = "Curates community YARA rules into signed rule packs for Mantha Ray, with a local LLM for borderline cases"
 readme = "README.md"
 license = {text = "MIT"}
@@ -16,7 +16,7 @@ classifiers = [
   "Topic :: Security",
   "License :: OSI Approved :: MIT License",
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.11.4"
 dependencies = ["plyara>=2.2", "yara-x==1.22.0", "cryptography>=42"]
 
 [project.optional-dependencies]

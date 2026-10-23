@@ -44,7 +44,7 @@ h export-bundle --unsigned "$work/bundle"
 h validate "$work/bundle"
 
 step "5. Phase 1b: sign a bundle (minisign format) and verify it the way Mantha Ray will"
-h keygen
+h keygen --no-password
 h publish --no-push
 tarball="$(ls "$work"/out/bundles/*/mantha-packs-*.tar.gz | head -1)"
 h verify "$tarball"
