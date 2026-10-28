@@ -53,5 +53,5 @@ allowed_licences = []         # empty = any known licence; otherwise text matche
                               # id or URL, e.g. ["DRL-1.1", "MIT", "Neo23x0/signature-base"]
 secret_key = "~/.config/hermit/minisign.key"   # outside the repo; back it up offline
 public_key = "config/minisign.pub"             # copy into Mantha Ray's repo
-release_repo = ""             # e.g. "yourname/mantha-packs"; `hermit publish` creates a GitHub release
+release_repo = "shashankmantha/mantha-packs"             # `hermit publish` creates a GitHub release here           # e.g. "yourname/mantha-packs"; `hermit publish` creates a GitHub release
 out_dir = "out/bundles"
