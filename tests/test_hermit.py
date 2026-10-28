@@ -264,6 +264,25 @@ def _live_pack(root: Path, licence: str | None = "https://example.org/LICENSE") 
     return pack
 
 
+class SourceLicenceTests(unittest.TestCase):
+    def test_hermits_own_licence_is_never_a_sources_licence(self):
+        from hermit.cli import gather_sources
+        home = Path(tempfile.mkdtemp())
+        (home / "LICENSE").write_text("MIT License\nPermission is hereby granted, free of charge, ...")
+        forge = home / "sources" / "yara-forge-core" / "packages" / "core"
+        forge.mkdir(parents=True)
+        (forge / "rules.yar").write_text("rule A { condition: true }\n")
+        repo = home / "sources" / "signature-base"
+        (repo / "yara").mkdir(parents=True)
+        (repo / "LICENSE").write_text("Detection Rule License (DRL) 1.1")
+        (repo / "yara" / "r.yar").write_text("rule B { condition: true }\n")
+        cfg = SimpleNamespace(root=home, sources_dir=home / "sources", sources={"source": [
+            {"name": "yara-forge-core"}, {"name": "signature-base", "paths": ["yara"]}]})
+        sources = gather_sources(cfg, [])
+        self.assertEqual(sources["yara-forge-core"].license, "unknown")  # not Hermit's MIT
+        self.assertEqual(sources["signature-base"].license, "DRL-1.1")  # from its own repo root
+
+
 class ContractTests(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp())
@@ -376,6 +395,14 @@ class ContractTests(unittest.TestCase):
         (out / "packs" / "games" / "rules" / "x.yar").symlink_to(secret)
         with self.assertRaisesRegex(contract.ContractError, "symlink"):
             contract.pack_digest(out / "packs" / "games")
+
+    def test_dry_run_publish_takes_no_version(self):
+        cfg = _fake_cfg(self.root, out_dir=str(self.root / "out"))
+        signing.generate_keypair(self.root / "k.pub", self.root / "k.key")
+        first = bundle.publish(cfg, lambda m: None, only=None, push=False, allow_version_mismatch=True)
+        again = bundle.publish(cfg, lambda m: None, only=None, push=False, allow_version_mismatch=True)
+        self.assertEqual(first["version"], again["version"])
+        self.assertTrue(first["version"].endswith(".1"))
 
     def test_safe_extract_rejects_escape(self):
         tb = self.root / "evil.tar.gz"

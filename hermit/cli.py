@@ -72,6 +72,28 @@ def default_config_dir() -> Path:
 
 # ---------------------------------------------------------------- pipeline
 
+def _source_parents(cfg: Config, root: Path, extra: bool) -> list[Path]:
+    """Folders above a source root that may hold its licence or git checkout.
+
+    Never Hermit's own folder (or anything above it), and for fetched sources
+    never `sources_dir` itself: otherwise a source without a licence file
+    would be labelled with Hermit's own MIT licence, and its rules would pass
+    the licence filter under a licence they don't have.
+    """
+    home = cfg.root.resolve()
+    stop = {home, *home.parents}
+    sources_dir = cfg.sources_dir.resolve()
+    out = []
+    for parent in list(root.parents)[:3]:
+        resolved = parent.resolve()
+        if resolved in stop:
+            break
+        if not extra and (resolved == sources_dir or sources_dir not in resolved.parents):
+            break
+        out.append(parent)
+    return out
+
+
 def gather_sources(cfg: Config, extra: list[str]):
     roots: list[tuple[str, Path]] = []
     enabled: dict = {}
@@ -106,8 +128,8 @@ def gather_sources(cfg: Config, extra: list[str]):
     sources = {}
     for name, root in roots:
         src = describe_source(name, root)
-        if src.license == "unknown" and root != root.parent:  # licence may sit at the repo root
-            for parent in list(root.parents)[:3]:
+        if src.license == "unknown":  # the licence may sit at the source repo's root
+            for parent in _source_parents(cfg, root, bool(extra)):
                 lic = describe_source(name, parent)
                 if lic.license != "unknown":
                     src.license, src.license_file, src.commit = lic.license, lic.license_file, src.commit or lic.commit
@@ -117,7 +139,7 @@ def gather_sources(cfg: Config, extra: list[str]):
             conf = conf_for.get(name, {})
             src.origin = conf.get("git") or conf.get("zip")
         if not src.commit and not extra:
-            for parent in list(root.parents)[:3]:
+            for parent in _source_parents(cfg, root, False):
                 if c := describe_source(name, parent).commit:
                     src.commit, src.origin = c, src.origin or describe_source(name, parent).origin
                     break
@@ -623,7 +645,7 @@ def main(argv=None):
 
     p = sub.add_parser("publish", help="build, sign and (with release_repo set) push a bundle")
     p.add_argument("--pack", action="append", help="only this pack (repeatable)")
-    p.add_argument("--no-push", action="store_true", help="build and sign only")
+    p.add_argument("--no-push", action="store_true", help="dry run: build, sign and verify locally; takes no version number")
     p.add_argument("--allow-version-mismatch", action="store_true",
                    help="publish even if yara-x differs from the pin (pack.yarx is left out)")
     p.set_defaults(fn=cmd_publish)

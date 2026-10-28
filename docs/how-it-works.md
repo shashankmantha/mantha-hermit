@@ -98,7 +98,7 @@ Each rule's dependencies (private and global rules) are stored with it, so a pac
 
 ```
 hermit keygen                 # once: password-protected secret key outside the repo, public key in config/minisign.pub
-hermit publish --no-push      # build, sign, verify locally
+hermit publish --no-push      # dry run: build, sign, verify locally (takes no version number)
 hermit publish                # ... and create a GitHub release on [bundle] release_repo (needs gh)
 ```
 
@@ -110,7 +110,7 @@ What `publish` does:
 4. Verifies the result exactly as Mantha Ray will.
 
 Versions always increase, even if the clock goes backwards, because Mantha Ray refuses a bundle older than the one it has installed.
-5. Records the version only after any push succeeds, so a failed push can simply be re-run.
+5. Records the version only after the release is created, so a failed push can simply be re-run, and a `--no-push` dry run never uses up a version number.
 
 `hermit keygen` makes a password-protected key with the `minisign` tool, and `publish` asks for the password when it signs. The release key can push rules to every install, so keep it that way. Publish from a terminal: the app can't ask for the password, so it won't publish with a protected key. `hermit keygen --no-password` makes a key without a password, which needs no `minisign` tool, for demos and testing only; `publish` warns when it signs with one.
 

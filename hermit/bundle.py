@@ -310,8 +310,13 @@ def publish(cfg, log, *, only: list[str] | None, push: bool, allow_version_misma
             raise BundleError(f"gh release create failed: {r.stderr.strip()[:400]} "
                               f"(the signed bundle is in {out}; nothing was recorded)")
         url = r.stdout.strip()
+    if not push:
+        # A dry run: nothing left this machine, so it takes no version number
+        # and isn't the baseline for the next release's changes.
+        log(f"Dry run: nothing recorded; the next publish builds {version} again")
+        return {"version": version, "dir": out, "tarball": tarball, "sha256": sha, "url": url, **built}
     state["published"].append({"bundle_version": version, "created_at": built["manifest"]["created_at"],
-                               "sha256": sha, "pushed_to": s.release_repo if push else None, "url": url})
+                               "sha256": sha, "pushed_to": s.release_repo, "url": url})
     state["last_contents"] = built["contents"]
     s.state_file.parent.mkdir(parents=True, exist_ok=True)
     s.state_file.write_text(json.dumps(state, indent=1))

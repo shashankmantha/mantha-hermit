@@ -302,7 +302,7 @@ hermit keygen
 
 The secret key is password-protected, created with `minisign`, and written outside the repository. The public key is written to `config/minisign.pub`. The release key can push rules to every Mantha Ray install, so always keep it password-protected and publish from a terminal, where `minisign` can ask for the password. For demos and testing, `hermit keygen --no-password` creates a key that needs no password; `publish` warns when it signs with one.
 
-Build, sign, and verify a bundle locally:
+Build, sign, and verify a bundle locally, as a dry run that takes no version number:
 
 ```bash
 hermit publish --no-push
