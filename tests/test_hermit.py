@@ -412,6 +412,15 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(first["version"], again["version"])
         self.assertTrue(first["version"].endswith(".1"))
 
+    def test_release_notes_credit_every_source(self):
+        out = self.root / "b"
+        built = bundle.build_tree(self.cfg, out, lambda m: None)
+        notes = bundle.release_notes(built, out)
+        self.assertIn("## Licences and attribution", notes)
+        sources = {r["source"] for p in out.glob("packs/*/pack.json") for r in _json.loads(p.read_text())["rules"]}
+        for s in sources:
+            self.assertIn(s, notes)
+
     def test_safe_extract_rejects_escape(self):
         tb = self.root / "evil.tar.gz"
         with _tarfile.open(tb, "w:gz") as t:

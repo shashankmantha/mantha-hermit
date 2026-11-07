@@ -293,7 +293,7 @@ def publish(cfg, log, *, only: list[str] | None, push: bool, allow_version_misma
     verified = verify_bundle(tarball, s.public_key.read_text())  # round trip, as Mantha Ray will
     log(f"Verified: signature, safe unpack, contract ({len(verified['packs'])} packs)")
     notes = out / "RELEASE_NOTES.md"
-    notes.write_text(release_notes(built))
+    notes.write_text(release_notes(built, out / "tree"))
     shutil.rmtree(out / "tree")
     url = None
     if push:
@@ -323,7 +323,44 @@ def publish(cfg, log, *, only: list[str] | None, push: bool, allow_version_misma
     return {"version": version, "dir": out, "tarball": tarball, "sha256": sha, "url": url, **built}
 
 
-def release_notes(built: dict) -> str:
+CC_LICENCES = {
+    "CC BY-SA 4.0": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "CC BY 4.0": "https://creativecommons.org/licenses/by/4.0/",
+    "CC BY-NC-SA 4.0": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+}
+
+
+def attribution(tree: Path) -> list[str]:
+    """Who wrote the rules in a bundle and under which licence, from each pack.json."""
+    by_source: dict[str, dict] = {}
+    for meta_file in sorted(tree.glob("packs/*/pack.json")):
+        for r in json.loads(meta_file.read_text())["rules"]:
+            row = by_source.setdefault(r.get("source") or "unknown", {"rules": 0, "licences": set()})
+            row["rules"] += 1
+            row["licences"].add(r.get("licence") or "unknown")
+    if not by_source:
+        return []
+    lines = ["", "## Licences and attribution", "",
+             "Every rule keeps its upstream licence, recorded per rule in `pack.json`, and its "
+             "author and reference stay in its metadata. Rule text is shipped as YARA Forge "
+             "publishes it; YARA Forge prefixes rule names and adds metadata.", "",
+             "| Rules from | Rules | Licence |", "|---|---|---|"]
+    for source, row in sorted(by_source.items(), key=lambda kv: (-kv[1]["rules"], kv[0])):
+        licences = sorted(row["licences"])
+        if len(licences) > 1:
+            shown = "varies, see `pack.json`"
+        elif licences[0] in CC_LICENCES:
+            shown = f"[{licences[0]}]({CC_LICENCES[licences[0]]})"
+        elif licences[0].startswith("https://"):
+            shown = f"[licence]({licences[0]})"
+        else:
+            shown = licences[0][:80]
+        link = f"[{source}](https://github.com/{source})" if source.count("/") == 1 else source
+        lines.append(f"| {link} | {row['rules']} | {shown} |")
+    return lines
+
+
+def release_notes(built: dict, tree: Path | None = None) -> str:
     m = built["manifest"]
     lines = [f"# Mantha packs {m['bundle_version']}", "", m["changes"], "",
              "| Pack | Version | Rules | threat / suspicious / info |", "|---|---|---|---|"]
@@ -336,4 +373,6 @@ def release_notes(built: dict) -> str:
                      f"{c.get('threat', 0)} / {c.get('suspicious', 0)} / {c.get('info', 0)} |")
     lines += ["", f"Built with YARA-X {m['yara_x_version']}; needs Mantha Ray {m['min_app_version']} or newer.",
               "", "Verify: `minisign -Vm <bundle>.tar.gz -p minisign.pub` or `hermit verify <bundle>.tar.gz`."]
+    if tree is not None:
+        lines += attribution(tree)
     return "\n".join(lines) + "\n"
