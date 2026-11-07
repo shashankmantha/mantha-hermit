@@ -49,9 +49,28 @@ min_app_version = "0.0.0"     # oldest Mantha Ray that can use the bundle
 include_compiled = true       # ship pack.yarx (Mantha Ray still compiles rule text unless signed + same YARA-X)
 # Licences: rules without a known licence stay out of published bundles.
 require_licence = true
-allowed_licences = []         # empty = any known licence; otherwise text matched against the licence
-                              # id or URL, e.g. ["DRL-1.1", "MIT", "Neo23x0/signature-base"]
+allowed_licences = [
+  # Licence stated in the rule itself
+  "cc by-sa 4.0",                                        # Malpedia (signator-rules)
+  "apache license 2.0",                                  # BlackBerry rules via mikesxrs/Open-Source-YARA-rules
+  # Upstream repos, by their LICENSE file
+  "github.com/neo23x0/signature-base/",                  # DRL 1.1
+  "github.com/sekoia-io/community/",                     # DRL 1.1
+  "github.com/cod3nym/detection-rules/",                 # DRL 1.1
+  "github.com/dr4k0nia/yara-rules/",                     # DRL 1.1
+  "github.com/ditekshen/detection/",                     # BSD-2-Clause
+  "github.com/volexity/threat-intel/",                   # BSD-2-Clause
+  "github.com/withsecurelabs/iocs/",                     # BSD-2-Clause
+  "github.com/mandiant/red_team_tool_countermeasures/",  # BSD-2-Clause
+  "github.com/eset/malware-ioc/",                        # BSD-2-Clause
+  "github.com/chronicle/gcti/",                          # Apache-2.0
+  "github.com/advanced-threat-research/yara-rules/",     # Apache-2.0
+  "github.com/magicsword-io/loldrivers/",                # Apache-2.0
+  "github.com/kevoreilly/capev2/",                       # GPL-3.0
+  "github.com/craiu/yararules/",                         # GPL-3.0
+]
 secret_key = "~/.config/hermit/minisign.key"   # outside the repo; back it up offline
 public_key = "config/minisign.pub"             # copy into Mantha Ray's repo
 release_repo = "shashankmantha/mantha-packs"             # `hermit publish` creates a GitHub release here           # e.g. "yourname/mantha-packs"; `hermit publish` creates a GitHub release
 out_dir = "out/bundles"
+
