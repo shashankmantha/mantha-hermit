@@ -342,8 +342,8 @@ def attribution(tree: Path) -> list[str]:
         return []
     lines = ["", "## Licences and attribution", "",
              "Every rule keeps its upstream licence, recorded per rule in `pack.json`, and its "
-             "author and reference stay in its metadata. Rule text is shipped as YARA Forge "
-             "publishes it; YARA Forge prefixes rule names and adds metadata.", "",
+             "author and reference stay in its metadata. Rules from YARA Forge are shipped as "
+             "Forge publishes them (Forge prefixes rule names and adds metadata).", "",
              "| Rules from | Rules | Licence |", "|---|---|---|"]
     for source, row in sorted(by_source.items(), key=lambda kv: (-kv[1]["rules"], kv[0])):
         licences = sorted(row["licences"])

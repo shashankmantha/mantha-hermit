@@ -438,10 +438,11 @@ def cmd_export_bundle(cfg, args):
 
 def cmd_publish(cfg, args):
     from .bundle import BundleError, publish
+    from .signing import SignatureError
     try:
         res = publish(cfg, log, only=args.pack or None, push=not args.no_push,
                       allow_version_mismatch=args.allow_version_mismatch)
-    except BundleError as exc:
+    except (BundleError, SignatureError) as exc:
         raise SystemExit(str(exc))
     log(f"\nPublished {res['version']}: {res['tarball']}")
     log(f"  sha256 {res['sha256']}")

@@ -121,8 +121,13 @@ def sign_file(path: Path, sec_path: Path, trusted_comment: str) -> Path:
         exe = shutil.which("minisign")
         if not exe:
             raise SignatureError("this secret key is password-protected; install minisign to sign with it")
-        subprocess.run([exe, "-S", "-s", str(sec_path), "-m", str(path), "-x", str(sig_path),
-                        "-t", trusted_comment], check=True)
+        done = subprocess.run([exe, "-S", "-s", str(sec_path), "-m", str(path), "-x", str(sig_path),
+                               "-t", trusted_comment])
+        if done.returncode != 0:
+            # minisign has already said why (usually "Wrong password for that key").
+            sig_path.unlink(missing_ok=True)
+            raise SignatureError("minisign couldn't sign the bundle; nothing was published. "
+                                 "Run the same command again to retry.")
         return sig_path
     key_id, priv = loaded
     with open(path, "rb") as fh:
