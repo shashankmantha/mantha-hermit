@@ -265,6 +265,14 @@ def _live_pack(root: Path, licence: str | None = "https://example.org/LICENSE") 
 
 
 class SourceLicenceTests(unittest.TestCase):
+    def test_rule_licence_skips_placeholders(self):
+        from hermit.features import rule_licence
+        self.assertEqual(rule_licence({"license_url": "N/A", "malpedia_license": "CC BY-SA 4.0"}), "CC BY-SA 4.0")
+        self.assertEqual(rule_licence({"license_url": "N/A", "license": "Apache License 2.0"}), "Apache License 2.0")
+        self.assertEqual(rule_licence({"license_url": "https://x/LICENSE", "license": "other"}), "https://x/LICENSE")
+        self.assertIsNone(rule_licence({"license_url": "N/A", "tlp": "TLP:WHITE"}))  # TLP isn't a licence
+        self.assertIsNone(rule_licence({}))
+
     def test_hermits_own_licence_is_never_a_sources_licence(self):
         from hermit.cli import gather_sources
         home = Path(tempfile.mkdtemp())

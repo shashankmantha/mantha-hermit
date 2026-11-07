@@ -71,8 +71,23 @@ def upstream(rule) -> tuple[str | None, str | None]:
     """(upstream repo, licence URL) from YARA Forge-style metadata, if present."""
     url = rule.meta.get("source_url", "")
     m = re.search(r"github\.com/([^/]+/[^/]+)", url)
-    lic = rule.meta.get("license_url") or rule.meta.get("license")
-    return (m.group(1) if m else None), (lic if lic and lic != "N/A" else None)
+    return (m.group(1) if m else None), rule_licence(rule.meta)
+
+
+# Metadata fields that state a rule's licence, in order of preference. YARA Forge
+# writes license_url = "N/A" when the upstream repo has no licence file, so a
+# placeholder must never hide a real licence in a later field (Malpedia rules carry
+# malpedia_license; some others a free-text `license`).
+LICENCE_FIELDS = ("license_url", "license", "licence", "malpedia_license")
+NOT_A_LICENCE = {"", "n/a", "na", "none", "unknown", "-", "tbd"}
+
+
+def rule_licence(meta: dict) -> str | None:
+    for field in LICENCE_FIELDS:
+        value = str(meta.get(field) or "").strip()
+        if value.lower() not in NOT_A_LICENCE:
+            return value
+    return None
 
 
 @dataclass
