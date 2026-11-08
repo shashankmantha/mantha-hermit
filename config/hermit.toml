@@ -50,7 +50,6 @@ include_compiled = true       # ship pack.yarx (Mantha Ray still compiles rule t
 # Licences: rules without a known licence stay out of published bundles.
 require_licence = true
 allowed_licences = [
-  
   "cc by-sa 4.0",                                        # Malpedia (signator-rules)
   "apache license 2.0",                                  # BlackBerry rules via mikesxrs/Open-Source-YARA-rules
   # Upstream repos, by their LICENSE file
